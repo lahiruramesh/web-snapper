@@ -47,7 +47,7 @@ def display_input_form():
         with col2:
             keywords = st.text_area("Relevance Keywords (one per line)", 
                                   "sustainability\nenvironment\ngreen\neco")
-            max_pages = st.number_input("Max Pages to Crawl", 1, 100, 25)
+            max_pages = st.number_input("Max Pages to Crawl", 1, 100, 1)
         
         submit_button = st.form_submit_button("Start Crawling")
         
@@ -331,6 +331,3 @@ def display_summary_tab(results, keywords_list):
             )
     except Exception as e:
         st.error(f"Could not read summary file: {str(e)}")
-
-if __name__ == "__main__":
-    main()

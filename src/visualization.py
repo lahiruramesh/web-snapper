@@ -3,7 +3,7 @@ Visualization components for the Streamlit web crawler app.
 Contains functions for displaying data and creating interactive visualizations.
 """
 import re
-import streamlit as st
+import streamlitapp as st
 import pandas as pd
 import altair as alt
 from PIL import Image

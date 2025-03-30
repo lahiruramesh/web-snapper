@@ -41,7 +41,7 @@ pip install -r requirements.txt
 
 4. Starting the application
 ```bash
-streamlit run main.py
+streamlit run app.py
 ```
 
 ### Setup with Docker
