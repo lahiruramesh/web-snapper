@@ -1,0 +1,6 @@
+streamlit>=1.24.0
+crawl4ai
+beautifulsoup4
+pillow
+pandas
+requests
