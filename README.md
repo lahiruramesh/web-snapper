@@ -18,8 +18,9 @@ A comprehensive web crawling tool with image extraction capabilities and keyword
 
 - Python 3.8+
 - pip package manager
+- chromium browser
 
-### Setup
+### Setup without Docker
 
 1. Clone the repository:
 ```bash
@@ -43,4 +44,15 @@ pip install -r requirements.txt
 streamlit run main.py
 ```
 
+### Setup with Docker
+```bash
+docker build -t web-snapper .
+```
+```bash
+docker run -p 8501:8501 -v $(pwd)/crawler_results:/app/crawler_results web-snapper
+```
+
+
+
 The application will open in your default web browser at http://localhost:8501
+
