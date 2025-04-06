@@ -52,7 +52,7 @@ def display_input_form():
     with st.form("crawler_form"):
         col1, col2 = st.columns(2)
         with col1:
-            url = st.text_input("Website URL", "https://www.example.com")
+            url = st.text_input("Website URL", "https://naturepreserve.co")
             max_depth = st.slider("Crawl Depth", 1, 5, 2)
         with col2:
             keywords = st.text_area("Relevance Keywords (one per line)", 

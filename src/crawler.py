@@ -7,6 +7,8 @@ import os
 import json
 import re
 import datetime
+import subprocess
+import platform
 from bs4 import BeautifulSoup
 from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, BrowserConfig
 from crawl4ai.deep_crawling import BestFirstCrawlingStrategy
@@ -21,6 +23,24 @@ from utils import (
     extract_all_text,
     check_keyword_relevance
 )
+
+def kill_chrome_processes():
+    """Kill any lingering Chrome/Chromium processes that might be causing issues"""
+    system = platform.system().lower()
+    
+    try:
+        if system == 'darwin':  # macOS
+
+            subprocess.run(['pkill', 'Chromium'], stderr=subprocess.DEVNULL)
+        elif system == 'linux':
+            subprocess.run(['pkill', 'chromium'], stderr=subprocess.DEVNULL)
+        elif system == 'windows':
+            subprocess.run(['taskkill', '/F', '/IM', 'chrome.exe'], stderr=subprocess.DEVNULL, shell=True)
+            subprocess.run(['taskkill', '/F', '/IM', 'chromium.exe'], stderr=subprocess.DEVNULL, shell=True)
+        
+        print("Cleaned up any existing browser processes")
+    except Exception as e:
+        print(f"Note: Process cleanup attempt: {str(e)}")
 
 async def crawl_website(url, keywords=None, max_depth=2, max_pages=25, threshold=0.001, progress_callback=None):
     """
@@ -37,10 +57,12 @@ async def crawl_website(url, keywords=None, max_depth=2, max_pages=25, threshold
     Returns:
         dict: Crawl results including directory paths and processed content
     """
+    # Kill any lingering browser processes before starting
+    kill_chrome_processes()
+    
     if keywords is None:
         keywords = ["sustainability", "environment", "green", "eco"]
    
-    
     scorer = KeywordRelevanceScorer(
         keywords=keywords,
         weight=0.7
@@ -73,12 +95,23 @@ async def crawl_website(url, keywords=None, max_depth=2, max_pages=25, threshold
     matched_pages = 0
     total_matched_images = 0
     
-    base_browser = BrowserConfig(
+    # Enhanced browser config with explicit parameters
+    browser_config = BrowserConfig(
         browser_type="chromium",
         headless=True,
     )
 
-    async with AsyncWebCrawler(config=base_browser) as crawler:
+    crawler = None
+    results = []
+    
+    try:
+        # Create crawler with correct parameter name (browser_config)
+        crawler = AsyncWebCrawler(config==browser_config)
+        
+        # Start the crawler
+        await crawler.start()
+        
+        # Run the crawl
         results = await crawler.arun(url, config=config)
         
         processed_results = []
@@ -146,7 +179,6 @@ async def crawl_website(url, keywords=None, max_depth=2, max_pages=25, threshold
                     if progress_callback:
                         progress_callback(pages_crawled, len(results), matched_pages, total_matched_images)
                 
-        
                 page_result = {
                     'url': result.url,
                     'depth': result.metadata.get('depth', 0),
@@ -170,16 +202,32 @@ async def crawl_website(url, keywords=None, max_depth=2, max_pages=25, threshold
                                     keyword_matches, page_images, page_filename)
             
             _write_summary_statistics(f, results, matched_pages, total_matched_images)
+            
+    except Exception as e:
+        print(f"Error during crawling: {str(e)}")
+        raise
+    
+    finally:
+        # Always ensure proper cleanup
+        if crawler:
+            try:
+                await crawler.stop()
+                print("Crawler stopped successfully")
+            except Exception as e:
+                print(f"Error stopping crawler: {e}")
+                
+        # Force kill any lingering processes to be extra safe
+        kill_chrome_processes()
         
-        return {
-            'directory': directory,
-            'summary_file': summary_filename,
-            'results': processed_results,
-            'images_dir': images_dir,
-            'total_pages': len(results),
-            'matched_pages': matched_pages,
-            'matched_images': total_matched_images
-        }
+    return {
+        'directory': directory,
+        'summary_file': summary_filename,
+        'results': processed_results,
+        'images_dir': images_dir,
+        'total_pages': len(results),
+        'matched_pages': matched_pages,
+        'matched_images': total_matched_images
+    }
 
 def _write_page_content_file(filepath, result, page_text, is_relevant, match_count, 
                            keyword_matches, page_images):
