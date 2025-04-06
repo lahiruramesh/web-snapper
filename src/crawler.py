@@ -14,6 +14,7 @@ from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, BrowserConfig
 from crawl4ai.deep_crawling import BestFirstCrawlingStrategy
 from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
 from crawl4ai.deep_crawling.scorers import KeywordRelevanceScorer
+import time
 
 
 from utils import (
@@ -35,9 +36,8 @@ def kill_chrome_processes():
         elif system == 'linux':
             subprocess.run(['pkill', 'chromium'], stderr=subprocess.DEVNULL)
         elif system == 'windows':
-            subprocess.run(['taskkill', '/F', '/IM', 'chrome.exe'], stderr=subprocess.DEVNULL, shell=True)
             subprocess.run(['taskkill', '/F', '/IM', 'chromium.exe'], stderr=subprocess.DEVNULL, shell=True)
-        
+        time.sleep(1)
         print("Cleaned up any existing browser processes")
     except Exception as e:
         print(f"Note: Process cleanup attempt: {str(e)}")
