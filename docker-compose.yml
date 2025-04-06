@@ -1,0 +1,17 @@
+version: '3.8'
+services:
+  crawl4ai:
+    image: unclecode/crawl4ai:all
+    ports:
+      - "11235:11235"
+    environment:
+      - MAX_CONCURRENT_TASKS=5
+      - CRAWL4AI_API_TOKEN=your_secret_token
+    volumes:
+      - /dev/shm:/dev/shm
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 1G
