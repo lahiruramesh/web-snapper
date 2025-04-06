@@ -110,7 +110,7 @@ async def crawl_website(url, keywords=None, max_depth=2, max_pages=25, threshold
         await crawler.start()
         
         # Run the crawl
-        results = await crawler.arun(url, browser_config=config)
+        results = await crawler.arun(url, browser_config=browser_config)
         
         processed_results = []
         matched_pages = 0
