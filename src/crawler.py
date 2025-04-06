@@ -57,8 +57,6 @@ async def crawl_website(url, keywords=None, max_depth=2, max_pages=25, threshold
     Returns:
         dict: Crawl results including directory paths and processed content
     """
-    # Kill any lingering browser processes before starting
-    kill_chrome_processes()
     
     if keywords is None:
         keywords = ["sustainability", "environment", "green", "eco"]
@@ -106,13 +104,13 @@ async def crawl_website(url, keywords=None, max_depth=2, max_pages=25, threshold
     
     try:
         # Create crawler with correct parameter name (browser_config)
-        crawler = AsyncWebCrawler(config=browser_config)
+        crawler = AsyncWebCrawler()
         
         # Start the crawler
         await crawler.start()
         
         # Run the crawl
-        results = await crawler.arun(url, config=config)
+        results = await crawler.arun(url, browser_config=config)
         
         processed_results = []
         matched_pages = 0
@@ -211,7 +209,7 @@ async def crawl_website(url, keywords=None, max_depth=2, max_pages=25, threshold
         # Always ensure proper cleanup
         if crawler:
             try:
-                await crawler.stop()
+                await crawler.close()
                 print("Crawler stopped successfully")
             except Exception as e:
                 print(f"Error stopping crawler: {e}")
