@@ -106,7 +106,7 @@ async def crawl_website(url, keywords=None, max_depth=2, max_pages=25, threshold
     
     try:
         # Create crawler with correct parameter name (browser_config)
-        crawler = AsyncWebCrawler(config==browser_config)
+        crawler = AsyncWebCrawler(config=browser_config)
         
         # Start the crawler
         await crawler.start()
