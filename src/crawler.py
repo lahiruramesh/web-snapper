@@ -8,7 +8,7 @@ import json
 import re
 import datetime
 from bs4 import BeautifulSoup
-from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
+from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, BrowserConfig
 from crawl4ai.deep_crawling import BestFirstCrawlingStrategy
 from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
 from crawl4ai.deep_crawling.scorers import KeywordRelevanceScorer
@@ -72,8 +72,13 @@ async def crawl_website(url, keywords=None, max_depth=2, max_pages=25, threshold
     pages_crawled = 0
     matched_pages = 0
     total_matched_images = 0
+    
+    base_browser = BrowserConfig(
+        browser_type="chromium",
+        headless=True,
+    )
 
-    async with AsyncWebCrawler() as crawler:
+    async with AsyncWebCrawler(config=base_browser) as crawler:
         results = await crawler.arun(url, config=config)
         
         processed_results = []
