@@ -1,0 +1,58 @@
+version: '3'
+
+services:
+  reverse-proxy:
+    image: traefik:v3.3
+    command:
+      - --api.dashboard=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./certs:/certs  # Mount local certificates
+      - ./traefik:/etc/traefik/dynamic  # For static config
+    restart: unless-stopped
+
+  crawl4ai:
+    image: unclecode/crawl4ai:all
+    environment:
+      - CRAWL4AI_API_TOKEN=${CRAWL4AI_API_TOKEN}
+      - MAX_CONCURRENT_TASKS=5
+    volumes:
+      - /dev/shm:/dev/shm
+    networks:
+      - crawler-net
+    # No traefik labels - this service will not be exposed publicly
+    
+  web-snapper:
+    build: .
+    environment:
+      - CRAWL4AI_API_TOKEN=${CRAWL4AI_API_TOKEN}
+      - CRAWL4AI_API_URL=http://crawl4ai:11235  # Internal Docker network URL
+    volumes:
+      - crawler_results:/app/crawler_results
+      - /dev/shm:/dev/shm  # For better browser performance
+    depends_on:
+      - crawl4ai
+    networks:
+      - crawler-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.websnapper.rule=Host(`sales.lahiru.com`)"
+      - "traefik.http.routers.websnapper.entrypoints=websecure"
+      - "traefik.http.routers.websnapper.tls=true"
+      - "traefik.http.services.websnapper.loadbalancer.server.port=8501"
+
+volumes:
+  crawler_results:
+
+networks:
+  crawler-net:
