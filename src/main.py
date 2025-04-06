@@ -13,6 +13,16 @@ import altair as alt
 from PIL import Image
 
 from crawler import crawl_website
+from crawl4ai.browser_manager import BrowserManager
+
+async def _restart_browser(self):
+    if self.playwright:
+        await self.playwright.stop()
+    self.playwright = None
+    await self.start()
+
+BrowserManager.restart = _restart_browser
+
 
 def main():
     """Main application entry point"""
@@ -52,13 +62,20 @@ def display_input_form():
         submit_button = st.form_submit_button("Start Crawling")
         
         if submit_button:
+            if 'crawler_results' in st.session_state:
+                del st.session_state.crawler_results
+            time.sleep(0.1)  # Small delay to ensure UI updates
             process_crawler_submission(url, keywords, max_depth, max_pages)
 
 def process_crawler_submission(url, keywords, max_depth, max_pages):
     """Process the crawler form submission"""
     keywords_list = [k.strip() for k in keywords.split('\n') if k.strip()]
     st.session_state.keywords_list = keywords_list
-    
+    if 'crawler' in st.session_state:
+        del st.session_state.crawler
+     
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)   
     # Show progress container
     progress_container = st.container()
     
@@ -104,7 +121,7 @@ def process_crawler_submission(url, keywords, max_depth, max_pages):
             time.sleep(0.1)
         
         # Run the actual crawler with progress callback
-        results = asyncio.run(crawl_website(
+        results = loop.run_until_complete(crawl_website(
             url, 
             keywords_list, 
             max_depth, 
@@ -129,6 +146,8 @@ def process_crawler_submission(url, keywords, max_depth, max_pages):
     except Exception as e:
         st.error(f"An error occurred during crawling: {str(e)}")
         st.exception(e)
+    finally:
+        loop.close()
 def display_results():
     """Display the crawler results"""
     results = st.session_state.results
