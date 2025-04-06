@@ -1,7 +1,7 @@
 version: '3.8'
 services:
   crawl4ai:
-    image: unclecode/crawl4ai:all
+    image: unclecode/crawl4ai:basic
     ports:
       - "11235:11235"
     environment:
