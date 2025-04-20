@@ -8,7 +8,7 @@ import json
 import re
 import datetime
 from bs4 import BeautifulSoup
-from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
+from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, BrowserConfig
 from crawl4ai.deep_crawling import BestFirstCrawlingStrategy
 from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
 from crawl4ai.deep_crawling.scorers import KeywordRelevanceScorer
@@ -21,6 +21,8 @@ from utils import (
     extract_all_text,
     check_keyword_relevance
 )
+
+crawler_semaphore = asyncio.Semaphore(1)
 
 async def crawl_website(url, keywords=None, max_depth=2, max_pages=25, threshold=0.001, progress_callback=None):
     """
@@ -73,100 +75,109 @@ async def crawl_website(url, keywords=None, max_depth=2, max_pages=25, threshold
     matched_pages = 0
     total_matched_images = 0
 
-    async with AsyncWebCrawler() as crawler:
-        results = await crawler.arun(url, config=config)
-        
-        processed_results = []
-        matched_pages = 0
-        total_matched_images = 0
-        summary_filename = os.path.join(directory, "summary.txt")
-        
-        with open(summary_filename, 'w', encoding='utf-8') as f:
-            f.write(f"Web Crawler Results - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write(f"Base URL: {url}\n")
-            f.write(f"Crawled {len(results)} pages in total\n")
-            f.write(f"Keywords: {', '.join(keywords)}\n\n")
+    async with crawler_semaphore:
+        try:
+            browser_config = BrowserConfig(
+                headless=True,
+                extra_args=["--disable-dev-shm-usage", "--no-sandbox"]
+            ) 
             
-            for i, result in enumerate(results, 1):
-                pages_crawled = i
-                if progress_callback:
-                    progress_callback(pages_crawled, len(results), matched_pages, total_matched_images)
+            crawler = AsyncWebCrawler(config=browser_config)
+            await crawler.start()   
+            
+            results = await crawler.arun(url=url, config=config)
+            
+            processed_results = []
+            matched_pages = 0
+            total_matched_images = 0
+            summary_filename = os.path.join(directory, "summary.txt")
+            
+            with open(summary_filename, 'w', encoding='utf-8') as f:
+                f.write(f"Web Crawler Results - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"Base URL: {url}\n")
+                f.write(f"Crawled {len(results)} pages in total\n")
+                f.write(f"Keywords: {', '.join(keywords)}\n\n")
                 
-                if hasattr(result, 'html') and result.html:
-                    debug_html_file = os.path.join(debug_dir, f"{i:03d}_raw.html")
-                    with open(debug_html_file, 'w', encoding='utf-8') as debug_file:
-                        debug_file.write(result.html)
-                    
-                    page_text = extract_all_text(result.html, result.url)
-                else:
-                    page_text = result.text if hasattr(result, 'text') else ''
-                
-                debug_text_file = os.path.join(debug_dir, f"{i:03d}_text.txt")
-                with open(debug_text_file, 'w', encoding='utf-8') as debug_file:
-                    debug_file.write(page_text)
-                
-                is_relevant, match_count, keyword_matches = check_keyword_relevance(page_text, keywords, threshold)
-                
-                matched_pages += 1 if is_relevant else 0
-                
-                page_filename = f"{i:03d}_{sanitize_filename(result.url)}.txt"
-                page_filepath = os.path.join(directory, page_filename)
-                
-                page_images = []
-                if hasattr(result, 'html') and result.html:
-                    soup = BeautifulSoup(result.html, 'html.parser')
-                    img_tags = soup.find_all('img')
-                    
-                    for img in img_tags:
-                        img_url = img.get('src')
-                        alt_text = img.get('alt', '')
-                        
-                        img_is_relevant = any(keyword.lower() in alt_text.lower() for keyword in keywords) if alt_text else False
-                        
-                        if is_valid_image_url(img_url) and (img_is_relevant or is_relevant):
-                            img_name, img_path = download_image(img_url, result.url, images_dir)
-                            if img_name:
-                                page_images.append({
-                                    'filename': img_name,
-                                    'path': img_path,
-                                    'original_url': img_url,
-                                    'alt_text': alt_text,
-                                    'is_relevant': img_is_relevant
-                                })
-                
-                if is_relevant:
-                    matched_pages += 1
-                    total_matched_images += len(page_images)
-                    
+                for i, result in enumerate(results, 1):
+                    pages_crawled = i
                     if progress_callback:
                         progress_callback(pages_crawled, len(results), matched_pages, total_matched_images)
-                
-        
-                page_result = {
-                    'url': result.url,
-                    'depth': result.metadata.get('depth', 0),
-                    'title': result.title if hasattr(result, 'title') else 'N/A',
-                    'status_code': result.status_code if hasattr(result, 'status_code') else 'Unknown',
-                    'text': page_text,
-                    'text_file': page_filepath,
-                    'images': page_images,
-                    'keyword_matches': match_count,
-                    'keyword_details': keyword_matches,
-                    'relevance_score': match_count / len(page_text.split()) if page_text else 0,
-                    'is_relevant': is_relevant
-                }
-                
-                processed_results.append(page_result)
-                
-                _write_page_content_file(page_filepath, result, page_text, is_relevant, 
-                                        match_count, keyword_matches, page_images)
-                
-                _write_summary_entry(f, i, result, is_relevant, match_count, 
-                                    keyword_matches, page_images, page_filename)
+                    
+                    if hasattr(result, 'html') and result.html:
+                        debug_html_file = os.path.join(debug_dir, f"{i:03d}_raw.html")
+                        with open(debug_html_file, 'w', encoding='utf-8') as debug_file:
+                            debug_file.write(result.html)
+                        
+                        page_text = extract_all_text(result.html, result.url)
+                    else:
+                        page_text = result.text if hasattr(result, 'text') else ''
+                    
+                    debug_text_file = os.path.join(debug_dir, f"{i:03d}_text.txt")
+                    with open(debug_text_file, 'w', encoding='utf-8') as debug_file:
+                        debug_file.write(page_text)
+                    
+                    is_relevant, match_count, keyword_matches = check_keyword_relevance(page_text, keywords, threshold)
+                    
+                    matched_pages += 1 if is_relevant else 0
+                    
+                    page_filename = f"{i:03d}_{sanitize_filename(result.url)}.txt"
+                    page_filepath = os.path.join(directory, page_filename)
+                    
+                    page_images = []
+                    if hasattr(result, 'html') and result.html:
+                        soup = BeautifulSoup(result.html, 'html.parser')
+                        img_tags = soup.find_all('img')
+                        
+                        for img in img_tags:
+                            img_url = img.get('src')
+                            alt_text = img.get('alt', '')
+                            
+                            img_is_relevant = any(keyword.lower() in alt_text.lower() for keyword in keywords) if alt_text else False
+                            
+                            if is_valid_image_url(img_url) and (img_is_relevant or is_relevant):
+                                img_name, img_path = download_image(img_url, result.url, images_dir)
+                                if img_name:
+                                    page_images.append({
+                                        'filename': img_name,
+                                        'path': img_path,
+                                        'original_url': img_url,
+                                        'alt_text': alt_text,
+                                        'is_relevant': img_is_relevant
+                                    })
+                    
+                    if is_relevant:
+                        matched_pages += 1
+                        total_matched_images += len(page_images)
+                        
+                        if progress_callback:
+                            progress_callback(pages_crawled, len(results), matched_pages, total_matched_images)
+                    
             
-            _write_summary_statistics(f, results, matched_pages, total_matched_images)
-        
-        return {
+                    page_result = {
+                        'url': result.url,
+                        'depth': result.metadata.get('depth', 0),
+                        'title': result.title if hasattr(result, 'title') else 'N/A',
+                        'status_code': result.status_code if hasattr(result, 'status_code') else 'Unknown',
+                        'text': page_text,
+                        'text_file': page_filepath,
+                        'images': page_images,
+                        'keyword_matches': match_count,
+                        'keyword_details': keyword_matches,
+                        'relevance_score': match_count / len(page_text.split()) if page_text else 0,
+                        'is_relevant': is_relevant
+                    }
+                    
+                    processed_results.append(page_result)
+                    
+                    _write_page_content_file(page_filepath, result, page_text, is_relevant, 
+                                            match_count, keyword_matches, page_images)
+                    
+                    _write_summary_entry(f, i, result, is_relevant, match_count, 
+                                        keyword_matches, page_images, page_filename)
+                
+                _write_summary_statistics(f, results, matched_pages, total_matched_images)
+            
+            return {
             'directory': directory,
             'summary_file': summary_filename,
             'results': processed_results,
@@ -175,6 +186,19 @@ async def crawl_website(url, keywords=None, max_depth=2, max_pages=25, threshold
             'matched_pages': matched_pages,
             'matched_images': total_matched_images
         }
+        except Exception as e:
+            
+            return {
+                'error': str(e),
+                'url': url,
+                'status': 'error'
+            }
+        finally:
+            if crawler:
+                try:
+                    await crawler.aclose()
+                except Exception as e:
+                    print(f"Error closing crawler: {str(e)}")
 
 def _write_page_content_file(filepath, result, page_text, is_relevant, match_count, 
                            keyword_matches, page_images):
